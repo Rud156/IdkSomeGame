@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Utils;
 
 namespace Player
 {
@@ -9,6 +10,7 @@ namespace Player
     {
         [Header("Components")]
         [SerializeField] private CharacterController _characterController;
+        [SerializeField] private Transform _characterMesh;
 
         [Header("Movement")]
         [SerializeField] private float _moveSpeed;
@@ -21,6 +23,10 @@ namespace Player
         private InputAction _lookAction;
         private InputAction _jumpAction;
         private InputAction _sprintAction;
+        // Input Data
+        private Vector2 _moveInput;
+        private Vector2 _lookInput;
+        private bool _sprintPressed;
 
         // Player State
         private Stack<PlayerState> _playerStateStack;
@@ -38,19 +44,17 @@ namespace Player
 
         private void Start()
         {
-            _moveAction = InputSystem.actions.FindAction("Move");
-            _lookAction = InputSystem.actions.FindAction("Look");
-            _jumpAction = InputSystem.actions.FindAction("Jump");
-            _sprintAction = InputSystem.actions.FindAction("Sprint");
-
             _moveVelocity = Vector3.zero;
 
             _playerStateStack = new Stack<PlayerState>();
             PushState(PlayerState.Idle);
+
+            SetupInput();
         }
 
         private void Update()
         {
+            UpdateInput();
             UpdatePlayerMovement();
         }
 
@@ -104,7 +108,10 @@ namespace Player
                 return;
             }
 
-            _moveVelocity.y = _jumpLaunchSpeed;
+            if (_jumpAction.WasPressedThisFrame())
+            {
+                _moveVelocity.y = _jumpLaunchSpeed;
+            }
         }
 
         private void CheckGroundedState()
@@ -129,6 +136,12 @@ namespace Player
 
         private void UpdateIdleState()
         {
+            if (IsZeroMoveInput())
+            {
+                return;
+            }
+            
+            PushState(PlayerState.Moving);
         }
 
         private void UpdateMovingState()
@@ -161,6 +174,45 @@ namespace Player
 
         private void UpdateAbility3State()
         {
+        }
+
+        #endregion
+
+        #region Update Look and Mesh
+
+        private void UpdateMeshRotation()
+        {
+        }
+
+        #endregion
+
+        #region Input Handling
+
+        private void SetupInput()
+        {
+            _moveAction = InputSystem.actions.FindAction("Move");
+            _moveAction.Enable();
+
+            _lookAction = InputSystem.actions.FindAction("Look");
+            _lookAction.Enable();
+
+            _jumpAction = InputSystem.actions.FindAction("Jump");
+            _jumpAction.Enable();
+
+            _sprintAction = InputSystem.actions.FindAction("Sprint");
+            _sprintAction.Enable();
+        }
+
+        private void UpdateInput()
+        {
+            _moveInput = _moveAction.ReadValue<Vector2>();
+            _lookInput = _lookAction.ReadValue<Vector2>();
+            _sprintPressed = _sprintAction.IsPressed();
+        }
+
+        private bool IsZeroMoveInput()
+        {
+            return ExtensionFunctions.IsNearlyZero(_moveInput.x) && ExtensionFunctions.IsNearlyZero(_moveInput.y);
         }
 
         #endregion
