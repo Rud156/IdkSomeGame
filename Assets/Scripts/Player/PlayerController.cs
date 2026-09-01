@@ -36,8 +36,8 @@ namespace Player
         private bool _sprintPressed;
 
         // Player State
-        private Stack<PlayerState> _playerStateStack;
-        [SerializeField] private bool _isGrounded;
+        private List<PlayerState> _playerStateStack;
+        private bool _isGrounded;
         private Vector3 _moveVelocity;
         private Vector3 _cameraPosition;
 
@@ -58,7 +58,7 @@ namespace Player
             _moveVelocity = Vector3.zero;
             _cameraPosition = Vector3.zero;
 
-            _playerStateStack = new Stack<PlayerState>();
+            _playerStateStack = new List<PlayerState>();
             PushState(PlayerState.Idle);
 
             SetupInput();
@@ -78,7 +78,7 @@ namespace Player
             CheckForJump();
             CheckGroundedState();
 
-            switch (_playerStateStack.Peek())
+            switch (_playerStateStack[^1])
             {
                 case PlayerState.Idle:
                     UpdateIdleState();
@@ -136,19 +136,27 @@ namespace Player
                 return;
             }
 
-            _isGrounded = _characterController.isGrounded;
             if (_isGrounded != _characterController.isGrounded)
             {
                 onGroundedStateChanged?.Invoke(_characterController.isGrounded);
+
+                // Activate Falling State if we are not doing anything special
+                if (!_characterController.isGrounded && _isGrounded && !IsSpecialMovementStateActive())
+                {
+                    PushState(PlayerState.Falling);
+                }
             }
 
-            if (!_characterController.isGrounded)
+            _isGrounded = _characterController.isGrounded;
+            if (!_isGrounded)
             {
-                _moveVelocity.y += (Physics.gravity.y * _gravityMultiplier);
+                // When it is falling make sure to handle proper Gravity acceleration...
+                _moveVelocity.y += Physics.gravity.y * _gravityMultiplier * Time.deltaTime;
             }
             else
             {
-                _moveVelocity.y = 0;
+                // When the character is on the ground it does not matter since we are at a constant speed anyway...
+                _moveVelocity.y = Physics.gravity.y;
             }
         }
 
@@ -208,6 +216,10 @@ namespace Player
 
         private void UpdateFallingState()
         {
+            if (_isGrounded)
+            {
+                PopState();
+            }
         }
 
         private void UpdateSlideState()
@@ -294,16 +306,24 @@ namespace Player
 
         #region State Functions
 
+        private bool IsSpecialMovementStateActive()
+        {
+            var topState = _playerStateStack[^1];
+            return topState > PlayerState.Falling;
+        }
+
         public void PushState(PlayerState playerState)
         {
-            onStateChanged?.Invoke(playerState, _playerStateStack.Peek());
-            _playerStateStack.Push(playerState);
+            onStateChanged?.Invoke(playerState, _playerStateStack[^1]);
+            _playerStateStack.Add(playerState);
         }
 
         public void PopState()
         {
-            var playerState = _playerStateStack.Pop();
-            onStateChanged?.Invoke(_playerStateStack.Peek(), playerState);
+            var playerState = _playerStateStack[^1];
+            _playerStateStack.RemoveAt(_playerStateStack.Count - 1);
+
+            onStateChanged?.Invoke(_playerStateStack[^1], playerState);
         }
 
         #endregion
