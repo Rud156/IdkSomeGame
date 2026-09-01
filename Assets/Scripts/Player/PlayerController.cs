@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Global;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Utils;
@@ -11,27 +12,34 @@ namespace Player
         [Header("Components")]
         [SerializeField] private CharacterController _characterController;
         [SerializeField] private Transform _characterMesh;
+        [SerializeField] private Transform _orientation;
+        [SerializeField] private Transform _cameraObject;
 
         [Header("Movement")]
         [SerializeField] private float _moveSpeed;
         [SerializeField] private float _accelerationRate;
         [SerializeField] private float _decelerationRate;
+        [SerializeField] private float _gravityMultiplier;
         [SerializeField] private float _jumpLaunchSpeed;
+
+        [Header("Mesh Controls")]
+        [SerializeField] private float _rotationSpeed;
 
         // Inputs
         private InputAction _moveAction;
-        private InputAction _lookAction;
         private InputAction _jumpAction;
         private InputAction _sprintAction;
         // Input Data
+        private float _currentMoveSpeed;
         private Vector2 _moveInput;
-        private Vector2 _lookInput;
+        private Vector2 _lastMoveInput;
         private bool _sprintPressed;
 
         // Player State
         private Stack<PlayerState> _playerStateStack;
-        private bool _isGrounded;
+        [SerializeField] private bool _isGrounded;
         private Vector3 _moveVelocity;
+        private Vector3 _cameraPosition;
 
         // Delegates
         public delegate void OnJumped();
@@ -44,7 +52,11 @@ namespace Player
 
         private void Start()
         {
+            CursorController.EnableCursor(false);
+
+            _currentMoveSpeed = 0;
             _moveVelocity = Vector3.zero;
+            _cameraPosition = Vector3.zero;
 
             _playerStateStack = new Stack<PlayerState>();
             PushState(PlayerState.Idle);
@@ -56,6 +68,7 @@ namespace Player
         {
             UpdateInput();
             UpdatePlayerMovement();
+            UpdateMeshRotation();
         }
 
         #region Player Movement
@@ -116,18 +129,52 @@ namespace Player
 
         private void CheckGroundedState()
         {
-            if (_isGrounded == _characterController.isGrounded)
+            // If we just jumped this frame give some time for the game to register a jump
+            // We can easily process this next frame...
+            if (_jumpAction.WasPressedThisFrame() && _characterController.isGrounded)
             {
                 return;
             }
 
-            onGroundedStateChanged?.Invoke(_characterController.isGrounded);
             _isGrounded = _characterController.isGrounded;
+            if (_isGrounded != _characterController.isGrounded)
+            {
+                onGroundedStateChanged?.Invoke(_characterController.isGrounded);
+            }
+
+            if (!_characterController.isGrounded)
+            {
+                _moveVelocity.y += (Physics.gravity.y * _gravityMultiplier);
+            }
+            else
+            {
+                _moveVelocity.y = 0;
+            }
         }
 
         private void ApplyPlayerMovement()
         {
-            _characterController.Move(_moveVelocity * Time.deltaTime);
+            if (IsZeroMoveInput())
+            {
+                _currentMoveSpeed -= _decelerationRate * Time.deltaTime;
+            }
+            else
+            {
+                _currentMoveSpeed += _accelerationRate * Time.deltaTime;
+            }
+
+            _currentMoveSpeed = Mathf.Clamp(_currentMoveSpeed, 0, _moveSpeed);
+
+            // Setup Movement...
+            var targetMovementVelocity = Vector3.zero;
+            targetMovementVelocity.x = _moveVelocity.x;
+            targetMovementVelocity.z = _moveVelocity.z;
+            targetMovementVelocity *= (_currentMoveSpeed * Time.deltaTime);
+
+            // Add vertical Jump movement...
+            targetMovementVelocity.y = _moveVelocity.y;
+
+            _characterController.Move(targetMovementVelocity);
         }
 
         #endregion
@@ -140,12 +187,23 @@ namespace Player
             {
                 return;
             }
-            
+
             PushState(PlayerState.Moving);
         }
 
         private void UpdateMovingState()
         {
+            if (IsZeroMoveInput())
+            {
+                PopState();
+            }
+
+            var movement = _orientation.forward * _lastMoveInput.y + _orientation.right * _lastMoveInput.x;
+            movement.y = 0;
+            movement.Normalize();
+
+            _moveVelocity.x = movement.x;
+            _moveVelocity.z = movement.z;
         }
 
         private void UpdateFallingState()
@@ -182,6 +240,22 @@ namespace Player
 
         private void UpdateMeshRotation()
         {
+            _cameraPosition.y = transform.position.y;
+            _cameraPosition.x = _cameraObject.transform.position.x;
+            _cameraPosition.z = _cameraObject.transform.position.z;
+
+            var viewDirection = transform.position - _cameraPosition;
+            _orientation.forward = viewDirection.normalized;
+
+            var inputDirection = _orientation.forward * _moveInput.y + _orientation.right * _moveInput.x;
+            if (!IsZeroMoveInput())
+            {
+                _characterMesh.forward = Vector3.Slerp(
+                    _characterMesh.forward,
+                    inputDirection.normalized,
+                    Time.deltaTime * _rotationSpeed
+                );
+            }
         }
 
         #endregion
@@ -193,9 +267,6 @@ namespace Player
             _moveAction = InputSystem.actions.FindAction("Move");
             _moveAction.Enable();
 
-            _lookAction = InputSystem.actions.FindAction("Look");
-            _lookAction.Enable();
-
             _jumpAction = InputSystem.actions.FindAction("Jump");
             _jumpAction.Enable();
 
@@ -206,7 +277,11 @@ namespace Player
         private void UpdateInput()
         {
             _moveInput = _moveAction.ReadValue<Vector2>();
-            _lookInput = _lookAction.ReadValue<Vector2>();
+            if (!IsZeroMoveInput())
+            {
+                _lastMoveInput = _moveInput;
+            }
+
             _sprintPressed = _sprintAction.IsPressed();
         }
 
