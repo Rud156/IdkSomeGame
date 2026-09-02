@@ -5,10 +5,9 @@ namespace Player
 {
     public class PlayerAnimationController : MonoBehaviour
     {
+        private static readonly int Moving = Animator.StringToHash("Moving");
         private static readonly int Jump = Animator.StringToHash("Jump");
-        private static readonly int Moving = Animator.StringToHash("Running");
         private static readonly int Falling = Animator.StringToHash("Falling");
-
 
         [Header("Components")]
         [SerializeField] private Animator _animator;
@@ -34,7 +33,7 @@ namespace Player
         {
             _animator.SetTrigger(Jump);
         }
-        
+
         private void HandleGroundedStateChanged(bool currentState)
         {
             _animator.SetBool(Falling, !currentState);

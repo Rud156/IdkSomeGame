@@ -1668,6 +1668,7 @@ GameObject:
   - component: {fileID: 4957240333141369974}
   - component: {fileID: 2571399497470924098}
   - component: {fileID: 1131403475909433891}
+  - component: {fileID: 51265536399188793}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1732,13 +1733,26 @@ MonoBehaviour:
   _characterController: {fileID: 2571399497470924098}
   _characterMesh: {fileID: 2309650106571831528}
   _orientation: {fileID: 7476766096933519505}
-  _cameraObject: {fileID: 0}
   _moveSpeed: 14
   _accelerationRate: 21
   _decelerationRate: 35
-  _gravityMultiplier: 0.15
+  _gravityMultiplier: 0.1
   _jumpLaunchSpeed: 0.3
   _rotationSpeed: 7
+--- !u!114 &51265536399188793
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5903717745466453737}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 692d88f7e4ac6c34d95d4492690e8814, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Player.PlayerAnimationController
+  _animator: {fileID: 5540833429631775206}
+  _playerController: {fileID: 1131403475909433891}
 --- !u!1 &5928851659728594979
 GameObject:
   m_ObjectHideFlags: 0

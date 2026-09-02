@@ -13,7 +13,6 @@ namespace Player
         [SerializeField] private CharacterController _characterController;
         [SerializeField] private Transform _characterMesh;
         [SerializeField] private Transform _orientation;
-        [SerializeField] private Transform _cameraObject;
 
         [Header("Movement")]
         [SerializeField] private float _moveSpeed;
@@ -24,6 +23,9 @@ namespace Player
 
         [Header("Mesh Controls")]
         [SerializeField] private float _rotationSpeed;
+
+        // Additional Components
+        private Transform _cameraObject;
 
         // Inputs
         private InputAction _moveAction;
@@ -36,9 +38,10 @@ namespace Player
         private bool _sprintPressed;
 
         // Player State
-        private List<PlayerState> _playerStateStack;
+        private Stack<PlayerState> _playerStateStack;
         private bool _isGrounded;
         private Vector3 _moveVelocity;
+        private Vector3 _finalPlayerMovementVelocity;
         private Vector3 _cameraPosition;
 
         // Delegates
@@ -53,12 +56,14 @@ namespace Player
         private void Start()
         {
             CursorController.EnableCursor(false);
+            _cameraObject = GameObject.FindGameObjectWithTag(GameTags.MainCamera).transform;
 
             _currentMoveSpeed = 0;
             _moveVelocity = Vector3.zero;
+            _finalPlayerMovementVelocity = Vector3.zero;
             _cameraPosition = Vector3.zero;
 
-            _playerStateStack = new List<PlayerState>();
+            _playerStateStack = new Stack<PlayerState>();
             PushState(PlayerState.Idle);
 
             SetupInput();
@@ -78,7 +83,7 @@ namespace Player
             CheckForJump();
             CheckGroundedState();
 
-            switch (_playerStateStack[^1])
+            switch (_playerStateStack.Peek())
             {
                 case PlayerState.Idle:
                     UpdateIdleState();
@@ -124,6 +129,7 @@ namespace Player
             if (_jumpAction.WasPressedThisFrame())
             {
                 _moveVelocity.y = _jumpLaunchSpeed;
+                onJumped?.Invoke();
             }
         }
 
@@ -174,15 +180,15 @@ namespace Player
             _currentMoveSpeed = Mathf.Clamp(_currentMoveSpeed, 0, _moveSpeed);
 
             // Setup Movement...
-            var targetMovementVelocity = Vector3.zero;
-            targetMovementVelocity.x = _moveVelocity.x;
-            targetMovementVelocity.z = _moveVelocity.z;
-            targetMovementVelocity *= (_currentMoveSpeed * Time.deltaTime);
+            var deltaMoveSpeed = _currentMoveSpeed * Time.deltaTime;
+            _finalPlayerMovementVelocity.x = _moveVelocity.x * deltaMoveSpeed;
+            _finalPlayerMovementVelocity.z = _moveVelocity.z * deltaMoveSpeed;
 
-            // Add vertical Jump movement...
-            targetMovementVelocity.y = _moveVelocity.y;
+            // Setup vertical velocity...
+            _finalPlayerMovementVelocity.y = _moveVelocity.y;
 
-            _characterController.Move(targetMovementVelocity);
+            // Apply the final velocity...
+            _characterController.Move(_finalPlayerMovementVelocity);
         }
 
         #endregion
@@ -297,33 +303,30 @@ namespace Player
             _sprintPressed = _sprintAction.IsPressed();
         }
 
-        private bool IsZeroMoveInput()
-        {
-            return ExtensionFunctions.IsNearlyZero(_moveInput.x) && ExtensionFunctions.IsNearlyZero(_moveInput.y);
-        }
+        private bool IsZeroMoveInput() =>
+            ExtensionFunctions.IsNearlyZero(_moveInput.x)
+            &&
+            ExtensionFunctions.IsNearlyZero(_moveInput.y);
 
         #endregion
 
         #region State Functions
 
-        private bool IsSpecialMovementStateActive()
-        {
-            var topState = _playerStateStack[^1];
-            return topState > PlayerState.Falling;
-        }
+        private bool IsSpecialMovementStateActive() => _playerStateStack.Peek() > PlayerState.CUSTOM_MOVEMENT;
 
         public void PushState(PlayerState playerState)
         {
-            onStateChanged?.Invoke(playerState, _playerStateStack[^1]);
-            _playerStateStack.Add(playerState);
+            onStateChanged?.Invoke(
+                playerState,
+                _playerStateStack.Count > 0 ? _playerStateStack.Peek() : PlayerState.Idle
+            );
+            _playerStateStack.Push(playerState);
         }
 
         public void PopState()
         {
-            var playerState = _playerStateStack[^1];
-            _playerStateStack.RemoveAt(_playerStateStack.Count - 1);
-
-            onStateChanged?.Invoke(_playerStateStack[^1], playerState);
+            var playerState = _playerStateStack.Pop();
+            onStateChanged?.Invoke(_playerStateStack.Peek(), playerState);
         }
 
         #endregion

@@ -7,6 +7,8 @@
         Moving,
         Falling,
         
+        CUSTOM_MOVEMENT, // This is only used as a marker...
+        
         // Sprint Actions
         Slide,
         WallRun,
