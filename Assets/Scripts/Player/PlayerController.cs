@@ -21,6 +21,17 @@ namespace Player
         [SerializeField] private float _gravityMultiplier;
         [SerializeField] private float _jumpLaunchSpeed;
 
+        [Header("Secondary Movement")]
+        [Header("Slide")]
+        [SerializeField] private float _slideSpeed;
+        [SerializeField] private float _slideDuration;
+        [Header("Wall Run")]
+        [SerializeField] private float _wallRunSpeed;
+        [SerializeField] private float _wallRunDuration;
+        [SerializeField] private float _wallRunDistanceCheck;
+        [Header("Rail Grind")]
+        [SerializeField] private float _railGrindSpeed;
+
         [Header("Mesh Controls")]
         [SerializeField] private float _rotationSpeed;
 
@@ -32,16 +43,15 @@ namespace Player
         private InputAction _jumpAction;
         private InputAction _sprintAction;
         // Input Data
-        private float _currentMoveSpeed;
-        private Vector2 _moveInput;
+        [SerializeField] private float _currentMoveSpeed;
+        [SerializeField] private Vector2 _moveInput;
         private Vector2 _lastMoveInput;
         private bool _sprintPressed;
 
         // Player State
         private Stack<PlayerState> _playerStateStack;
         private bool _isGrounded;
-        private Vector3 _moveVelocity;
-        private Vector3 _finalPlayerMovementVelocity;
+        [SerializeField] private Vector3 _moveVelocity;
         private Vector3 _cameraPosition;
 
         // Delegates
@@ -60,7 +70,6 @@ namespace Player
 
             _currentMoveSpeed = 0;
             _moveVelocity = Vector3.zero;
-            _finalPlayerMovementVelocity = Vector3.zero;
             _cameraPosition = Vector3.zero;
 
             _playerStateStack = new Stack<PlayerState>();
@@ -168,27 +177,8 @@ namespace Player
 
         private void ApplyPlayerMovement()
         {
-            if (IsZeroMoveInput())
-            {
-                _currentMoveSpeed -= _decelerationRate * Time.deltaTime;
-            }
-            else
-            {
-                _currentMoveSpeed += _accelerationRate * Time.deltaTime;
-            }
-
-            _currentMoveSpeed = Mathf.Clamp(_currentMoveSpeed, 0, _moveSpeed);
-
-            // Setup Movement...
-            var deltaMoveSpeed = _currentMoveSpeed * Time.deltaTime;
-            _finalPlayerMovementVelocity.x = _moveVelocity.x * deltaMoveSpeed;
-            _finalPlayerMovementVelocity.z = _moveVelocity.z * deltaMoveSpeed;
-
-            // Setup vertical velocity...
-            _finalPlayerMovementVelocity.y = _moveVelocity.y;
-
             // Apply the final velocity...
-            _characterController.Move(_finalPlayerMovementVelocity);
+            _characterController.Move(_moveVelocity);
         }
 
         #endregion
@@ -197,12 +187,26 @@ namespace Player
 
         private void UpdateIdleState()
         {
-            if (IsZeroMoveInput())
-            {
-                return;
-            }
+            // Maybe this is a bad idea of handling deceleration when Idle
+            // But the basic logic is this
+            // Keep decreasing MoveSpeed till we hit 0
+            _currentMoveSpeed -= _decelerationRate * Time.deltaTime;
+            _currentMoveSpeed = Mathf.Clamp(_currentMoveSpeed, 0, _moveSpeed);
+            var deltaMoveSpeed = _currentMoveSpeed * Time.deltaTime;
 
-            PushState(PlayerState.Moving);
+            // Calculate Movement Direction
+            var movement = _orientation.forward * _lastMoveInput.y + _orientation.right * _lastMoveInput.x;
+            movement.Normalize();
+            movement *= deltaMoveSpeed;
+
+            // Setup Movement...
+            _moveVelocity.x = movement.x;
+            _moveVelocity.z = movement.z;
+
+            if (!IsZeroMoveInput())
+            {
+                PushState(PlayerState.Moving);
+            }
         }
 
         private void UpdateMovingState()
@@ -212,12 +216,37 @@ namespace Player
                 PopState();
             }
 
-            var movement = _orientation.forward * _lastMoveInput.y + _orientation.right * _lastMoveInput.x;
-            movement.y = 0;
-            movement.Normalize();
+            // Calculate the speed at which the player will be moving...
+            _currentMoveSpeed += _accelerationRate * Time.deltaTime;
+            _currentMoveSpeed = Mathf.Clamp(_currentMoveSpeed, 0, _moveSpeed);
+            var deltaMoveSpeed = _currentMoveSpeed * Time.deltaTime;
 
+            // Calculate Movement Direction
+            var movement = _orientation.forward * _lastMoveInput.y + _orientation.right * _lastMoveInput.x;
+            movement.Normalize();
+            movement *= deltaMoveSpeed;
+
+            // Setup Movement...
             _moveVelocity.x = movement.x;
             _moveVelocity.z = movement.z;
+
+            // If we are moving, and we press the Slide Action only then we can perform
+            // One of the 3 actions. The action performed depends on where the character is...
+            if (_sprintAction.WasPressedThisFrame())
+            {
+                if (CanActivateSlide())
+                {
+                    PushState(PlayerState.Slide);
+                }
+                else if (CanActivateWallRun())
+                {
+                    PushState(PlayerState.WallRun);
+                }
+                else if (CanActivateRailGrind())
+                {
+                    PushState(PlayerState.RailGrind);
+                }
+            }
         }
 
         private void UpdateFallingState()
@@ -228,12 +257,24 @@ namespace Player
             }
         }
 
+        private bool CanActivateSlide() => !IsZeroMoveInput() && _playerStateStack.Peek() == PlayerState.Moving;
+
         private void UpdateSlideState()
         {
         }
 
+        private bool CanActivateWallRun()
+        {
+            return false;
+        }
+
         private void UpdateWallRunState()
         {
+        }
+
+        private bool CanActivateRailGrind()
+        {
+            return false;
         }
 
         private void UpdateRailGrindState()
