@@ -54,14 +54,26 @@ namespace Player
         [SerializeField] private Vector3 _moveVelocity;
         private Vector3 _cameraPosition;
 
+        // Slide Data
+        private Vector2 _slideDirectionInput; // The player is not allowed to change directions when sliding...
+        private float _slideCurrentTime;
+
+        // Rail Grind Data
+
+        // Wall Run Data
+
         // Delegates
         public delegate void OnJumped();
         public delegate void OnGroundedStateChanged(bool currentState);
         public delegate void OnStateChanged(PlayerState currentState, PlayerState previousState);
+        public delegate void OnStatePushed(PlayerState pushedState);
+        public delegate void OnStatePopped(PlayerState poppedState);
 
         public OnJumped onJumped;
         public OnGroundedStateChanged onGroundedStateChanged;
         public OnStateChanged onStateChanged;
+        public OnStatePushed onStatePushed;
+        public OnStatePopped onStatePopped;
 
         private void Start()
         {
@@ -236,6 +248,11 @@ namespace Player
             {
                 if (CanActivateSlide())
                 {
+                    // Basically, we save the direction when we start the slide and then use that for the
+                    // entire duration...
+                    _slideDirectionInput = _lastMoveInput;
+                    _slideCurrentTime = _slideDuration;
+
                     PushState(PlayerState.Slide);
                 }
                 else if (CanActivateWallRun())
@@ -261,6 +278,23 @@ namespace Player
 
         private void UpdateSlideState()
         {
+            // Calculate Movement Direction
+            var movement = _orientation.forward * _slideDirectionInput.y + _orientation.right * _slideDirectionInput.x;
+            movement.Normalize();
+            movement *= (_slideSpeed * Time.deltaTime);
+
+            // Setup Movement...
+            _moveVelocity.x = movement.x;
+            _moveVelocity.z = movement.z;
+
+            // Reduce the timer...
+            _slideCurrentTime -= Time.deltaTime;
+
+            // This means the slide is over we exit the state...
+            if (_slideCurrentTime <= 0)
+            {
+                PopState();
+            }
         }
 
         private bool CanActivateWallRun()
@@ -297,18 +331,43 @@ namespace Player
 
         #region Update Look and Mesh
 
+        private bool CanAdjustMeshRotation()
+        {
+            switch (_playerStateStack.Peek())
+            {
+                case PlayerState.Idle:
+                case PlayerState.Moving:
+                case PlayerState.Falling:
+                    return true;
+
+                case PlayerState.CUSTOM_MOVEMENT:
+                case PlayerState.Slide:
+                case PlayerState.WallRun:
+                case PlayerState.RailGrind:
+                    return false;
+
+                case PlayerState.Ability1:
+                case PlayerState.Ability2:
+                case PlayerState.Ability3:
+                    return true;
+
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
+
         private void UpdateMeshRotation()
         {
             _cameraPosition.y = transform.position.y;
             _cameraPosition.x = _cameraObject.transform.position.x;
             _cameraPosition.z = _cameraObject.transform.position.z;
 
-            var viewDirection = transform.position - _cameraPosition;
-            _orientation.forward = viewDirection.normalized;
-
-            var inputDirection = _orientation.forward * _moveInput.y + _orientation.right * _moveInput.x;
-            if (!IsZeroMoveInput())
+            if (!IsZeroMoveInput() && CanAdjustMeshRotation())
             {
+                var viewDirection = transform.position - _cameraPosition;
+                _orientation.forward = viewDirection.normalized;
+
+                var inputDirection = _orientation.forward * _moveInput.y + _orientation.right * _moveInput.x;
                 _characterMesh.forward = Vector3.Slerp(
                     _characterMesh.forward,
                     inputDirection.normalized,
@@ -361,6 +420,8 @@ namespace Player
                 playerState,
                 _playerStateStack.Count > 0 ? _playerStateStack.Peek() : PlayerState.Idle
             );
+            onStatePushed?.Invoke(playerState);
+
             _playerStateStack.Push(playerState);
         }
 
@@ -368,6 +429,7 @@ namespace Player
         {
             var playerState = _playerStateStack.Pop();
             onStateChanged?.Invoke(_playerStateStack.Peek(), playerState);
+            onStatePopped?.Invoke(playerState);
         }
 
         #endregion
