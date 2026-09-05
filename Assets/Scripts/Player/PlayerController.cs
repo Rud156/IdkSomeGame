@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Global;
+using Global.GameObjectMarkers;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Utils;
@@ -26,11 +27,21 @@ namespace Player
         [SerializeField] private float _slideSpeed;
         [SerializeField] private float _slideDuration;
         [Header("Wall Run")]
+        [SerializeField] private Transform _wallRunLeftSide;
+        [SerializeField] private Transform _wallRunRightSide;
         [SerializeField] private float _wallRunSpeed;
         [SerializeField] private float _wallRunDuration;
         [SerializeField] private float _wallRunDistanceCheck;
+        [SerializeField]
+        [Tooltip(
+            "This is primarily used to push the player towards the wall. So the distance must be less than _wallRunDistanceCheck"
+        )]
+        private float _wallRunAttachedDistanceCheck;
+        [SerializeField] private float _wallRunCorrectionSpeed;
+        [SerializeField] private LayerMask _wallRunLayerMask;
         [Header("Rail Grind")]
         [SerializeField] private float _railGrindSpeed;
+        [SerializeField] private LayerMask _railGrindLayerMask;
 
         [Header("Mesh Controls")]
         [SerializeField] private float _rotationSpeed;
@@ -51,16 +62,19 @@ namespace Player
         // Player State
         private Stack<PlayerState> _playerStateStack;
         private bool _isGrounded;
-        [SerializeField] private Vector3 _moveVelocity;
+        private Vector3 _moveVelocity;
         private Vector3 _cameraPosition;
+        private RaycastHit[] _raycastHit; // This is shared by Raycasts used in this class
 
         // Slide Data
         private Vector2 _slideDirectionInput; // The player is not allowed to change directions when sliding...
         private float _slideCurrentTime;
 
-        // Rail Grind Data
-
         // Wall Run Data
+        private bool _isLeftWallRun;
+        private float _wallRunCurrentTime;
+
+        // Rail Grind Data
 
         // Delegates
         public delegate void OnJumped();
@@ -79,6 +93,8 @@ namespace Player
         {
             CursorController.EnableCursor(false);
             _cameraObject = GameObject.FindGameObjectWithTag(GameTags.MainCamera).transform;
+
+            _raycastHit = new RaycastHit[1];
 
             _currentMoveSpeed = 0;
             _moveVelocity = Vector3.zero;
@@ -156,7 +172,7 @@ namespace Player
 
         private void CheckGroundedState()
         {
-            // If we just jumped this frame give some time for the game to register a jump
+            // If we just jumped this frame, give some time for the game to register a jump.
             // We can easily process this next frame...
             if (_jumpAction.WasPressedThisFrame() && _characterController.isGrounded)
             {
@@ -252,11 +268,11 @@ namespace Player
                     // entire duration...
                     _slideDirectionInput = _lastMoveInput;
                     _slideCurrentTime = _slideDuration;
-
                     PushState(PlayerState.Slide);
                 }
-                else if (CanActivateWallRun())
+                else if (CanActivateWallRunSaveWallRunDirection())
                 {
+                    _wallRunCurrentTime = _wallRunDuration;
                     PushState(PlayerState.WallRun);
                 }
                 else if (CanActivateRailGrind())
@@ -297,13 +313,120 @@ namespace Player
             }
         }
 
-        private bool CanActivateWallRun()
+        private bool CanActivateWallRunSaveWallRunDirection()
         {
-            return false;
+            var isValidMovement = !IsZeroMoveInput() && _playerStateStack.Peek() == PlayerState.Moving;
+            if (!isValidMovement)
+            {
+                return false;
+            }
+
+            // Mark Left Side by default...
+            _isLeftWallRun = true;
+
+            // Check Left Side
+            var hitCount = Physics.RaycastNonAlloc(
+                _wallRunLeftSide.position,
+                -_characterMesh.right, // We depend on the character mesh for direction
+                _raycastHit,
+                _wallRunDistanceCheck,
+                _wallRunLayerMask
+            );
+            if (hitCount > 0)
+            {
+                return _raycastHit[0].collider.TryGetComponent<IsWallRunnable>(out _);
+            }
+
+            hitCount = Physics.RaycastNonAlloc(
+                _wallRunRightSide.position,
+                _characterMesh.right, // We depend on the character mesh for direction
+                _raycastHit,
+                _wallRunDistanceCheck,
+                _wallRunLayerMask
+            );
+
+            if (hitCount <= 0)
+            {
+                return false;
+            }
+
+            _isLeftWallRun = false;
+
+            // If we reached here means we have One of the Side stored in _isLeftWallRun
+            // The rest can be handled via the update loop...
+            return _raycastHit[0].collider.TryGetComponent<IsWallRunnable>(out _);
         }
 
         private void UpdateWallRunState()
         {
+            int hitCount;
+            if (_isLeftWallRun)
+            {
+                hitCount = Physics.RaycastNonAlloc(
+                    _wallRunLeftSide.position,
+                    -_characterMesh.right,
+                    _raycastHit,
+                    _wallRunDistanceCheck,
+                    _wallRunLayerMask
+                );
+            }
+            else
+            {
+                hitCount = Physics.RaycastNonAlloc(
+                    _wallRunRightSide.position,
+                    _characterMesh.right,
+                    _raycastHit,
+                    _wallRunDistanceCheck,
+                    _wallRunLayerMask
+                );
+            }
+
+            // This means we are no longer on a wall, so skip WallRunning
+            if (hitCount == 0)
+            {
+                PopState();
+                return;
+            }
+
+            var raycastHit = _raycastHit[0];
+
+            // This means we are no longer on a wall that is runnable, so skip WallRunning
+            var isWallRunnable = raycastHit.collider.TryGetComponent<IsWallRunnable>(out _);
+            if (!isWallRunnable)
+            {
+                PopState();
+                return;
+            }
+
+            // Get the Parallel Vector
+            var wallParallel = Vector3.Cross(raycastHit.normal, Vector3.up);
+
+            // Rotate the Vector if the player is facing the opposite direction...
+            if (Vector3.Dot(wallParallel, _characterMesh.forward) < 0)
+            {
+                wallParallel = -wallParallel;
+            }
+
+            var distanceFromWall = Vector3.Distance(transform.position, raycastHit.point);
+            var correctedDistance = distanceFromWall - _wallRunAttachedDistanceCheck;
+
+            // Now make a vector that goes into the wall
+            var correctionDirection = -raycastHit.normal * (correctedDistance * _wallRunCorrectionSpeed);
+            var movement = (wallParallel * _wallRunSpeed) + correctionDirection;
+            movement *= Time.deltaTime;
+
+            // Setup Movement...
+            _moveVelocity.x = movement.x;
+            _moveVelocity.z = movement.z;
+
+            // Reduce the timer...
+            _wallRunCurrentTime -= Time.deltaTime;
+
+            // This means the wall run is over we exit the state...
+            if (_wallRunCurrentTime <= 0)
+            {
+                PopState();
+            }
         }
 
         private bool CanActivateRailGrind()
