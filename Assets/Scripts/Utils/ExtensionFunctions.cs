@@ -6,16 +6,16 @@ namespace Utils
     public static class ExtensionFunctions
     {
         private const float Tolerance = 0.001f;
-        
-        public static int GetClosestMultiple(float number, int? multiple = 5)
+
+        public static int GetClosestMultiple(float number, int multiple = 5)
         {
-            var a = (int) (number / 5) * 5;
+            var a = (int)(number / multiple) * multiple;
             int b;
 
             if (number < 0)
-                b = a - 5;
+                b = a - multiple;
             else
-                b = a + 5;
+                b = a + multiple;
 
             return (Mathf.Abs(number - a) > Mathf.Abs(b - number)) ? b : a;
         }
@@ -23,8 +23,12 @@ namespace Utils
         public static string Format2DecimalPlace(float value) => value.ToString("0.##");
 
         public static Color ConvertAndClampColor(float r = 0, float g = 0, float b = 0, float a = 0) =>
-            new Color(Mathf.Clamp01(r), Mathf.Clamp01(g), Mathf.Clamp01(b),
-                Mathf.Clamp(a, 0, 255) / 255);
+            new(
+                Mathf.Clamp01(r),
+                Mathf.Clamp01(g),
+                Mathf.Clamp01(b),
+                Mathf.Clamp(a, 0, 255) / 255
+            );
 
         public static float To360Angle(float angle)
         {
@@ -55,7 +59,7 @@ namespace Utils
 
         public static bool IsNearlyZero(float value, float tolerance = Tolerance)
         {
-            return Math.Abs(value) <=  tolerance;
+            return Math.Abs(value) <= tolerance;
         }
     }
 }
