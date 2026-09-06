@@ -101,7 +101,7 @@ namespace Player
 
         private void Start()
         {
-            CursorController.EnableCursor(false);
+            CursorController.Instance.EnableCursor(false);
             _cameraObject = GameObject.FindGameObjectWithTag(GameTags.MainCamera).transform;
 
             _raycastHit = new RaycastHit[1];

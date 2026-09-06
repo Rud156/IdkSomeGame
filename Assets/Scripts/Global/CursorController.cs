@@ -27,7 +27,7 @@ namespace Global
 
         #region Public Functions
 
-        public static void EnableCursor(bool enable)
+        public void EnableCursor(bool enable)
         {
             Cursor.lockState = enable ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = enable;
