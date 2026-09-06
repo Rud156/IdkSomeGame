@@ -1768,7 +1768,7 @@ MonoBehaviour:
   _orientation: {fileID: 7476766096933519505}
   _moveSpeed: 14
   _accelerationRate: 21
-  _decelerationRate: 35
+  _decelerationRate: 49
   _gravityMultiplier: 0.1
   _jumpLaunchSpeed: 0.3
   _slideSpeed: 35
@@ -1777,12 +1777,13 @@ MonoBehaviour:
   _wallRunRightSide: {fileID: 2768216021420199333}
   _wallRunSpeed: 21
   _wallRunDuration: 1.5
-  _wallRunDistanceCheck: 20
-  _wallRunAttachedDistanceCheck: 10
+  _wallRunDistanceCheck: 10
+  _wallRunAttachedDistanceCheck: 3
   _wallRunCorrectionSpeed: 14
   _wallRunLayerMask:
     serializedVersion: 2
     m_Bits: 1
+  _wallRunDebugDuration: 0.1
   _railGrindSpeed: 0
   _railGrindLayerMask:
     serializedVersion: 2

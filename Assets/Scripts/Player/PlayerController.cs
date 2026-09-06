@@ -39,6 +39,7 @@ namespace Player
         private float _wallRunAttachedDistanceCheck;
         [SerializeField] private float _wallRunCorrectionSpeed;
         [SerializeField] private LayerMask _wallRunLayerMask;
+        [SerializeField] private float _wallRunDebugDuration;
         [Header("Rail Grind")]
         [SerializeField] private float _railGrindSpeed;
         [SerializeField] private LayerMask _railGrindLayerMask;
@@ -71,7 +72,7 @@ namespace Player
         private float _slideCurrentTime;
 
         // Wall Run Data
-        private bool _isLeftWallRun;
+        public bool IsLeftWallRun { get; private set; }
         private float _wallRunCurrentTime;
 
         // Rail Grind Data
@@ -262,15 +263,7 @@ namespace Player
             // One of the 3 actions. The action performed depends on where the character is...
             if (_sprintAction.WasPressedThisFrame())
             {
-                if (CanActivateSlide())
-                {
-                    // Basically, we save the direction when we start the slide and then use that for the
-                    // entire duration...
-                    _slideDirectionInput = _lastMoveInput;
-                    _slideCurrentTime = _slideDuration;
-                    PushState(PlayerState.Slide);
-                }
-                else if (CanActivateWallRunSaveWallRunDirection())
+                if (CanActivateWallRunSaveWallRunDirection())
                 {
                     _wallRunCurrentTime = _wallRunDuration;
                     PushState(PlayerState.WallRun);
@@ -278,6 +271,15 @@ namespace Player
                 else if (CanActivateRailGrind())
                 {
                     PushState(PlayerState.RailGrind);
+                }
+                // Since slide does not need any conditions per-say to activate. Check it last...
+                else if (CanActivateSlide())
+                {
+                    // Basically, we save the direction when we start the slide and then use that for the
+                    // entire duration...
+                    _slideDirectionInput = _lastMoveInput;
+                    _slideCurrentTime = _slideDuration;
+                    PushState(PlayerState.Slide);
                 }
             }
         }
@@ -322,7 +324,7 @@ namespace Player
             }
 
             // Mark Left Side by default...
-            _isLeftWallRun = true;
+            IsLeftWallRun = true;
 
             // Check Left Side
             var hitCount = Physics.RaycastNonAlloc(
@@ -350,7 +352,7 @@ namespace Player
                 return false;
             }
 
-            _isLeftWallRun = false;
+            IsLeftWallRun = false;
 
             // If we reached here means we have One of the Side stored in _isLeftWallRun
             // The rest can be handled via the update loop...
@@ -360,7 +362,7 @@ namespace Player
         private void UpdateWallRunState()
         {
             int hitCount;
-            if (_isLeftWallRun)
+            if (IsLeftWallRun)
             {
                 hitCount = Physics.RaycastNonAlloc(
                     _wallRunLeftSide.position,
@@ -389,6 +391,14 @@ namespace Player
             }
 
             var raycastHit = _raycastHit[0];
+
+            // Debug Draw
+            Debug.DrawLine(
+                IsLeftWallRun ? _wallRunLeftSide.position : _wallRunRightSide.position,
+                raycastHit.point,
+                Color.red,
+                _wallRunDebugDuration
+            );
 
             // This means we are no longer on a wall that is runnable, so skip WallRunning
             var isWallRunnable = raycastHit.collider.TryGetComponent<IsWallRunnable>(out _);

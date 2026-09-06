@@ -13,6 +13,7 @@ namespace Player
         // Additional Single Button Movement
         private static readonly int Sliding = Animator.StringToHash("Sliding");
         private static readonly int WallRun = Animator.StringToHash("WallRunning");
+        private static readonly int WallRunLeft = Animator.StringToHash("WalRunLeft");
         private static readonly int RailGrind = Animator.StringToHash("RailGrinding");
 
         [Header("Components")]
@@ -61,6 +62,7 @@ namespace Player
 
                 case PlayerState.WallRun:
                     _animator.SetBool(WallRun, true);
+                    _animator.SetBool(WallRunLeft, _playerController.IsLeftWallRun);
                     break;
 
                 case PlayerState.RailGrind:
