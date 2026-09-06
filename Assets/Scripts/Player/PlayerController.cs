@@ -61,10 +61,9 @@ namespace Player
         private InputAction _jumpAction;
         private InputAction _sprintAction;
         // Input Data
-        [SerializeField] private float _currentMoveSpeed;
-        [SerializeField] private Vector2 _moveInput;
+        private float _currentMoveSpeed;
+        private Vector2 _moveInput;
         private Vector2 _lastMoveInput;
-        private bool _sprintPressed;
 
         // Player State
         private Stack<PlayerState> _playerStateStack;
@@ -344,12 +343,6 @@ namespace Player
                 _wallRunDistanceCheck,
                 _wallRunLayerMask
             );
-            Debug.DrawLine(
-                _wallRunLeftSide.position,
-                _wallRunLeftSide.position + (-_characterMesh.right * _wallRunDistanceCheck),
-                Color.blue,
-                10
-            );
             if (hitCount > 0)
             {
                 return _raycastHit[0].collider.TryGetComponent<IsWallRunnable>(out _);
@@ -361,13 +354,6 @@ namespace Player
                 _raycastHit,
                 _wallRunDistanceCheck,
                 _wallRunLayerMask
-            );
-            
-            Debug.DrawLine(
-                _wallRunRightSide.position,
-                _wallRunRightSide.position + (_characterMesh.right * _wallRunDistanceCheck),
-                Color.blue,
-                10
             );
 
             if (hitCount <= 0)
@@ -625,7 +611,7 @@ namespace Player
                 _lastMoveInput = _moveInput;
             }
 
-            _sprintPressed = _sprintAction.IsPressed();
+            _sprintAction.IsPressed();
         }
 
         private bool IsZeroMoveInput() =>
