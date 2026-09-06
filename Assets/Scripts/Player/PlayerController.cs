@@ -344,6 +344,12 @@ namespace Player
                 _wallRunDistanceCheck,
                 _wallRunLayerMask
             );
+            Debug.DrawLine(
+                _wallRunLeftSide.position,
+                _wallRunLeftSide.position + (-_characterMesh.right * _wallRunDistanceCheck),
+                Color.blue,
+                10
+            );
             if (hitCount > 0)
             {
                 return _raycastHit[0].collider.TryGetComponent<IsWallRunnable>(out _);
@@ -355,6 +361,13 @@ namespace Player
                 _raycastHit,
                 _wallRunDistanceCheck,
                 _wallRunLayerMask
+            );
+            
+            Debug.DrawLine(
+                _wallRunRightSide.position,
+                _wallRunRightSide.position + (_characterMesh.right * _wallRunDistanceCheck),
+                Color.blue,
+                10
             );
 
             if (hitCount <= 0)
