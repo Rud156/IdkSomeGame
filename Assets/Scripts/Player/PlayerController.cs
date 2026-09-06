@@ -4,6 +4,7 @@ using Global;
 using Global.GameObjectMarkers;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Splines;
 using Utils;
 
 namespace Player
@@ -41,8 +42,13 @@ namespace Player
         [SerializeField] private LayerMask _wallRunLayerMask;
         [SerializeField] private float _wallRunDebugDuration;
         [Header("Rail Grind")]
+        [SerializeField] private Transform _railGrindCastLocation;
         [SerializeField] private float _railGrindSpeed;
+        [SerializeField] private float _railGrindDistanceCheck;
         [SerializeField] private LayerMask _railGrindLayerMask;
+        [SerializeField] private float _railGrindFowardCheckDistance;
+        [SerializeField] private int _railGrindSplineResolution;
+        [SerializeField] private int _railGrindSplineIterations;
 
         [Header("Mesh Controls")]
         [SerializeField] private float _rotationSpeed;
@@ -76,6 +82,10 @@ namespace Player
         private float _wallRunCurrentTime;
 
         // Rail Grind Data
+        private SplineContainer _railGrindSplineContainer;
+        private float _railGrindSplineLength;
+        private float _railGrindCurrentDistance;
+        private bool _railGrindPositive;
 
         // Delegates
         public delegate void OnJumped();
@@ -268,7 +278,7 @@ namespace Player
                     _wallRunCurrentTime = _wallRunDuration;
                     PushState(PlayerState.WallRun);
                 }
-                else if (CanActivateRailGrind())
+                else if (CanActivateRailGrindSaveSplineContainer())
                 {
                     PushState(PlayerState.RailGrind);
                 }
@@ -354,7 +364,7 @@ namespace Player
 
             IsLeftWallRun = false;
 
-            // If we reached here means we have One of the Side stored in _isLeftWallRun
+            // If we reached here means we have one of the sides stored in _isLeftWallRun
             // The rest can be handled via the update loop...
             return _raycastHit[0].collider.TryGetComponent<IsWallRunnable>(out _);
         }
@@ -439,13 +449,82 @@ namespace Player
             }
         }
 
-        private bool CanActivateRailGrind()
+        private bool CanActivateRailGrindSaveSplineContainer()
         {
-            return false;
+            var isValidMovement = !IsZeroMoveInput() && _playerStateStack.Peek() == PlayerState.Moving;
+            if (!isValidMovement)
+            {
+                return false;
+            }
+
+            var hitCount = Physics.RaycastNonAlloc(
+                _railGrindCastLocation.position,
+                Vector3.down,
+                _raycastHit,
+                _railGrindDistanceCheck,
+                _railGrindLayerMask
+            );
+            if (hitCount <= 0)
+            {
+                return false;
+            }
+
+            var isRailGrindable = _raycastHit[0].collider.TryGetComponent<IsRailGrindable>(out var railGrindComponent);
+            if (!isRailGrindable)
+            {
+                return false;
+            }
+
+            _railGrindSplineContainer = railGrindComponent.SplineContainer;
+            _railGrindSplineLength = _railGrindSplineContainer.CalculateLength();
+
+            var forwardPoint = transform.position + _characterMesh.forward * _railGrindFowardCheckDistance;
+            var localCurrentPoint = _railGrindSplineContainer.transform.InverseTransformPoint(transform.position);
+            var localForwardPoint = _railGrindSplineContainer.transform.InverseTransformPoint(forwardPoint);
+
+            SplineUtility.GetNearestPoint(
+                _railGrindSplineContainer.Spline,
+                localCurrentPoint,
+                out _,
+                out var currentRatio,
+                _railGrindSplineResolution,
+                _railGrindSplineIterations
+            );
+
+            SplineUtility.GetNearestPoint(
+                _railGrindSplineContainer.Spline,
+                localForwardPoint,
+                out _,
+                out var nextRatio,
+                _railGrindSplineResolution,
+                _railGrindSplineIterations
+            );
+
+            // If true means we need to increase distance else reduce distance
+            _railGrindPositive = nextRatio > currentRatio;
+            _railGrindCurrentDistance = currentRatio * _railGrindSplineLength;
+
+            return true;
         }
 
         private void UpdateRailGrindState()
         {
+            if (_railGrindCurrentDistance > _railGrindSplineLength || _railGrindCurrentDistance < 0)
+            {
+                PopState();
+                return;
+            }
+
+            _railGrindCurrentDistance += (_railGrindPositive ? 1 : -1) * _railGrindSpeed * Time.deltaTime;
+            var railGrindRatio = _railGrindCurrentDistance / _railGrindSplineLength;
+            Vector3 targetPosition = _railGrindSplineContainer.EvaluatePosition(railGrindRatio);
+
+            // No need to normalize this since the speed is factored into it from _railGrindCurrentDistance
+            var movement = targetPosition - transform.position;
+
+            // Setup Movement...
+            _moveVelocity.x = movement.x;
+            _moveVelocity.z = movement.z;
         }
 
         private void UpdateAbility1State()

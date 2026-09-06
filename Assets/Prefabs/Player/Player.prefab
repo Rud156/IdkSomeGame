@@ -1724,6 +1724,7 @@ Transform:
   - {fileID: 7476766096933519505}
   - {fileID: 2853230112475119967}
   - {fileID: 2768216021420199333}
+  - {fileID: 5188476887375244022}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!143 &2571399497470924098
@@ -1784,10 +1785,15 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 1
   _wallRunDebugDuration: 0.1
-  _railGrindSpeed: 0
+  _railGrindCastLocation: {fileID: 5188476887375244022}
+  _railGrindSpeed: 7
+  _railGrindDistanceCheck: 5
   _railGrindLayerMask:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 1
+  _railGrindFowardCheckDistance: 5
+  _railGrindSplineResolution: 16
+  _railGrindSplineIterations: 16
   _rotationSpeed: 7
   _currentMoveSpeed: 0
   _moveInput: {x: 0, y: 0}
@@ -1895,6 +1901,37 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4957240333141369974}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &6260619094004569917
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5188476887375244022}
+  m_Layer: 0
+  m_Name: RailGrind Check
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5188476887375244022
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6260619094004569917}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: -1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
