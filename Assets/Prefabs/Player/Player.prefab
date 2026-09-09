@@ -148,6 +148,8 @@ MonoBehaviour:
   _gravityMultiplier: 0.075
   _rotationSpeed: 14
   _slideSpeed: 21
+  _slideJumpVelocity: 0.35
+  _slideFallLaunchVelocity: 25
   _slideDuration: 1
   _wallRunLeftSide: {fileID: 2853230112475119967}
   _wallRunRightSide: {fileID: 2768216021420199333}
@@ -159,7 +161,6 @@ MonoBehaviour:
   _wallRunLayerMask:
     serializedVersion: 2
     m_Bits: 1
-  _wallRunDebugDuration: 0.1
   _railGrindCastLocation: {fileID: 5188476887375244022}
   _railGrindSpeed: 21
   _railGrindDistanceCheck: 5

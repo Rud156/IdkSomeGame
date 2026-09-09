@@ -32,6 +32,8 @@ namespace Player
         [Header("Secondary Movement")]
         [Header("Slide")]
         [SerializeField] private float _slideSpeed;
+        [SerializeField] private float _slideJumpVelocity;
+        [SerializeField] private float _slideFallLaunchVelocity;
         [SerializeField] private float _slideDuration;
         [Header("Wall Run")]
         [SerializeField] private Transform _wallRunLeftSide;
@@ -46,7 +48,6 @@ namespace Player
         private float _wallRunAttachedDistanceCheck;
         [SerializeField] private float _wallRunCorrectionSpeed;
         [SerializeField] private LayerMask _wallRunLayerMask;
-        [SerializeField] private float _wallRunDebugDuration;
         [Header("Rail Grind")]
         [SerializeField] private Transform _railGrindCastLocation;
         [SerializeField] private float _railGrindSpeed;
@@ -181,6 +182,13 @@ namespace Player
 
         private void CheckForJump()
         {
+            // If we are not running the Base Movement let the systems control
+            // What happens when Jumping...
+            if (IsSpecialMovementStateActive())
+            {
+                return;
+            }
+
             if (!_characterController.isGrounded)
             {
                 return;
@@ -195,6 +203,13 @@ namespace Player
 
         private void CheckGroundedState()
         {
+            // If we are not running the Base Movement let the systems control
+            // What happens when Falling down...
+            if (IsSpecialMovementStateActive())
+            {
+                return;
+            }
+
             // If we just jumped this frame, give some time for the game to register a jump.
             // We can easily process this next frame...
             if (_jumpAction.WasPressedThisFrame() && _characterController.isGrounded)
@@ -304,8 +319,8 @@ namespace Player
                 }
                 else if (CanActivateRailGrindSaveSplineContainer())
                 {
-                    CurrentMoveSpeed = 0;
-                    _previousFrameInput = Vector2.zero;
+                    CurrentMoveSpeed /= 2;
+                    _previousFrameInput /= 2;
                     PushState(PlayerState.RailGrind);
                 }
                 // Since the slide does not need any conditions per-say to activate. Check it last...
@@ -354,6 +369,32 @@ namespace Player
             // This means the slide is over we exit the state...
             if (_slideCurrentTime <= 0)
             {
+                PopState();
+                return;
+            }
+
+            // Launch the Player and the then 
+            if (_jumpAction.WasPressedThisFrame())
+            {
+                // Jump with a Boosted velocity...
+                _moveVelocity.y = _slideJumpVelocity;
+                onJumped?.Invoke();
+
+                PopState();
+                return;
+            }
+
+            if (!_characterController.isGrounded)
+            {
+                // Get launched forward... // TODO: This needs to be tested when the other things are polished...
+                movement = _orientation.forward * _slideDirectionInput.y + _orientation.right * _slideDirectionInput.x;
+                movement.Normalize();
+                movement *= (_slideFallLaunchVelocity * Time.deltaTime);
+
+                // Setup Movement...
+                _moveVelocity.x = movement.x;
+                _moveVelocity.z = movement.z;
+
                 PopState();
             }
         }
@@ -440,14 +481,6 @@ namespace Player
             }
 
             var raycastHit = _raycastHit[0];
-
-            // Debug Draw
-            Debug.DrawLine(
-                IsLeftWallRun ? _wallRunLeftSide.position : _wallRunRightSide.position,
-                raycastHit.point,
-                Color.red,
-                _wallRunDebugDuration
-            );
 
             // This means we are no longer on a wall that is runnable, so skip WallRunning
             var isWallRunnable = raycastHit.collider.TryGetComponent<IsWallRunnable>(out _);
