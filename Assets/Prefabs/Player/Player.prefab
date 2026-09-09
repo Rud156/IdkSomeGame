@@ -109,10 +109,44 @@ MonoBehaviour:
   _characterMesh: {fileID: 2403324588894079098}
   _orientation: {fileID: 7476766096933519505}
   _moveSpeed: 14
-  _accelerationRate: 21
-  _decelerationRate: 49
-  _gravityMultiplier: 0.1
+  _moveSpeedAnimCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: -1
+      value: 0
+      inSlope: 0.35
+      outSlope: 0.35
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 0
+      value: 0.35
+      inSlope: 0.42244676
+      outSlope: 0.42244676
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.15330179
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0.65
+      outSlope: 0.65
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _accelerationRate: 14
+  _decelerationRate: 7
   _jumpLaunchSpeed: 0.3
+  _gravityMultiplier: 0.075
+  _rotationSpeed: 14
   _slideSpeed: 21
   _slideDuration: 1
   _wallRunLeftSide: {fileID: 2853230112475119967}
@@ -135,9 +169,6 @@ MonoBehaviour:
   _railGrindFowardCheckDistance: 5
   _railGrindSplineResolution: 16
   _railGrindSplineIterations: 16
-  _rotationSpeed: 7
-  _currentMoveSpeed: 0
-  _moveInput: {x: 0, y: 0}
 --- !u!114 &51265536399188793
 MonoBehaviour:
   m_ObjectHideFlags: 0

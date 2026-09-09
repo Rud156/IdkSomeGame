@@ -18,10 +18,16 @@ namespace Player
 
         [Header("Movement")]
         [SerializeField] private float _moveSpeed;
+        [SerializeField] private AnimationCurve _moveSpeedAnimCurve;
         [SerializeField] private float _accelerationRate;
         [SerializeField] private float _decelerationRate;
-        [SerializeField] private float _gravityMultiplier;
+
+        [Header("Jump Controls")]
         [SerializeField] private float _jumpLaunchSpeed;
+        [SerializeField] private float _gravityMultiplier;
+
+        [Header("Mesh Controls")]
+        [SerializeField] private float _rotationSpeed;
 
         [Header("Secondary Movement")]
         [Header("Slide")]
@@ -50,9 +56,6 @@ namespace Player
         [SerializeField] private int _railGrindSplineResolution;
         [SerializeField] private int _railGrindSplineIterations;
 
-        [Header("Mesh Controls")]
-        [SerializeField] private float _rotationSpeed;
-
         // Additional Components
         private Transform _cameraObject;
 
@@ -61,9 +64,8 @@ namespace Player
         private InputAction _jumpAction;
         private InputAction _sprintAction;
         // Input Data
-        private float _currentMoveSpeed;
         private Vector2 _moveInput;
-        private Vector2 _lastMoveInput;
+        private Vector2 _lastNonZeroMoveInput;
 
         // Player State
         private Stack<PlayerState> _playerStateStack;
@@ -72,11 +74,20 @@ namespace Player
         private Vector3 _cameraPosition;
         private RaycastHit[] _raycastHit; // This is shared by Raycasts used in this class
 
+        // Basic Movement Data
+        public PlayerState CurrentPlayerState => _playerStateStack.Peek();
+        public float CurrentMoveSpeed { get; private set; }
+        public float MaxMoveSpeed => _moveSpeed;
+
+        // Moving State
+        private Vector2 _previousFrameInput;
+
         // Slide Data
         private Vector2 _slideDirectionInput; // The player is not allowed to change directions when sliding...
         private float _slideCurrentTime;
 
         // Wall Run Data
+        private Vector2 _wallRunDirectionInput; // TODO: Implement this...
         public bool IsLeftWallRun { get; private set; }
         private float _wallRunCurrentTime;
 
@@ -106,7 +117,7 @@ namespace Player
 
             _raycastHit = new RaycastHit[1];
 
-            _currentMoveSpeed = 0;
+            CurrentMoveSpeed = 0;
             _moveVelocity = Vector3.zero;
             _cameraPosition = Vector3.zero;
 
@@ -159,6 +170,8 @@ namespace Player
                 case PlayerState.Ability3:
                     UpdateAbility3State();
                     break;
+
+                case PlayerState.CUSTOM_MOVEMENT:
                 default:
                     throw new ArgumentOutOfRangeException();
             }
@@ -226,14 +239,15 @@ namespace Player
         private void UpdateIdleState()
         {
             // Maybe this is a bad idea of handling deceleration when Idle
-            // But the basic logic is this
+            // But, the basic logic is this
             // Keep decreasing MoveSpeed till we hit 0
-            _currentMoveSpeed -= _decelerationRate * Time.deltaTime;
-            _currentMoveSpeed = Mathf.Clamp(_currentMoveSpeed, 0, _moveSpeed);
-            var deltaMoveSpeed = _currentMoveSpeed * Time.deltaTime;
+            CurrentMoveSpeed -= _decelerationRate * Time.deltaTime;
+            CurrentMoveSpeed = Mathf.Clamp(CurrentMoveSpeed, 0, _moveSpeed);
+            var deltaMoveSpeed = CurrentMoveSpeed * Time.deltaTime;
 
             // Calculate Movement Direction
-            var movement = _orientation.forward * _lastMoveInput.y + _orientation.right * _lastMoveInput.x;
+            var movement = _orientation.forward * _lastNonZeroMoveInput.y +
+                           _orientation.right * _lastNonZeroMoveInput.x;
             movement.Normalize();
             movement *= deltaMoveSpeed;
 
@@ -254,21 +268,31 @@ namespace Player
                 PopState();
             }
 
-            // Calculate the speed at which the player will be moving...
-            _currentMoveSpeed += _accelerationRate * Time.deltaTime;
-            _currentMoveSpeed = Mathf.Clamp(_currentMoveSpeed, 0, _moveSpeed);
-            var deltaMoveSpeed = _currentMoveSpeed * Time.deltaTime;
-
             // Calculate Movement Direction
-            var movement = _orientation.forward * _lastMoveInput.y + _orientation.right * _lastMoveInput.x;
+            var movement = _orientation.forward * _moveInput.y + _orientation.right * _moveInput.x;
             movement.Normalize();
+
+            // Before we apply the speed, we need to compute the direction difference.
+            // So, we can reduce/increase the based...
+            var dotProduct = Vector3.Dot(_moveInput, _previousFrameInput);
+            var mappedSpeedMultiplier = _moveSpeedAnimCurve.Evaluate(dotProduct);
+            // Calculate the final Movement speed...
+            CurrentMoveSpeed += _accelerationRate * Time.deltaTime;
+            CurrentMoveSpeed *= mappedSpeedMultiplier;
+            CurrentMoveSpeed = Mathf.Clamp(CurrentMoveSpeed, 0, _moveSpeed);
+
+            // Apply the speed...
+            var deltaMoveSpeed = CurrentMoveSpeed * Time.deltaTime;
             movement *= deltaMoveSpeed;
 
             // Setup Movement...
             _moveVelocity.x = movement.x;
             _moveVelocity.z = movement.z;
 
-            // If we are moving, and we press the Slide Action only then we can perform
+            // Save the Previous Frame Input...
+            _previousFrameInput = _moveInput;
+
+            // If we are moving, and we press the Slide Action only, then we can perform
             // One of the 3 actions. The action performed depends on where the character is...
             if (_sprintAction.WasPressedThisFrame())
             {
@@ -286,7 +310,7 @@ namespace Player
                 {
                     // Basically, we save the direction when we start the slide and then use that for the
                     // entire duration...
-                    _slideDirectionInput = _lastMoveInput;
+                    _slideDirectionInput = _lastNonZeroMoveInput;
                     _slideCurrentTime = _slideDuration;
                     PushState(PlayerState.Slide);
                 }
@@ -608,7 +632,7 @@ namespace Player
             _moveInput = _moveAction.ReadValue<Vector2>();
             if (!IsZeroMoveInput())
             {
-                _lastMoveInput = _moveInput;
+                _lastNonZeroMoveInput = _moveInput;
             }
 
             _sprintAction.IsPressed();

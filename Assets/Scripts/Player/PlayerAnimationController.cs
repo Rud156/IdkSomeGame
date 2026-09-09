@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using Utils;
 
 namespace Player
 {
@@ -7,6 +8,7 @@ namespace Player
     {
         // Basic Movement
         private static readonly int Moving = Animator.StringToHash("Moving");
+        private static readonly int MovingSpeed = Animator.StringToHash("MovingSpeed");
         private static readonly int Jump = Animator.StringToHash("Jump");
         private static readonly int Falling = Animator.StringToHash("Falling");
 
@@ -34,6 +36,38 @@ namespace Player
             _playerController.onStatePopped -= HandleStatePopped;
         }
 
+        private void LateUpdate()
+        {
+            switch (_playerController.CurrentPlayerState)
+            {
+                case PlayerState.Idle:
+                case PlayerState.Moving:
+                {
+                    var currentSpeed = _playerController.CurrentMoveSpeed;
+                    var maxSpeed = _playerController.MaxMoveSpeed;
+                    var ratio = currentSpeed / maxSpeed;
+
+                    _animator.SetFloat(MovingSpeed, ratio);
+                    _animator.SetBool(Moving, !ExtensionFunctions.IsNearlyZero(ratio));
+                }
+                    break;
+
+
+                case PlayerState.Falling:
+                case PlayerState.Slide:
+                case PlayerState.WallRun:
+                case PlayerState.RailGrind:
+                case PlayerState.Ability1:
+                case PlayerState.Ability2:
+                case PlayerState.Ability3:
+                    break;
+
+                case PlayerState.CUSTOM_MOVEMENT:
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
+
         #region State Functions
 
         private void HandlePlayerJumped()
@@ -46,10 +80,7 @@ namespace Player
             switch (pushedState)
             {
                 case PlayerState.Idle:
-                    break;
-
                 case PlayerState.Moving:
-                    _animator.SetBool(Moving, true);
                     break;
 
                 case PlayerState.Falling:
@@ -75,6 +106,8 @@ namespace Player
                     break;
                 case PlayerState.Ability3:
                     break;
+
+                case PlayerState.CUSTOM_MOVEMENT:
                 default:
                     throw new ArgumentOutOfRangeException(nameof(pushedState), pushedState, null);
             }
@@ -85,10 +118,7 @@ namespace Player
             switch (poppedState)
             {
                 case PlayerState.Idle:
-                    break;
-
                 case PlayerState.Moving:
-                    _animator.SetBool(Moving, false);
                     break;
 
                 case PlayerState.Falling:
@@ -113,6 +143,8 @@ namespace Player
                     break;
                 case PlayerState.Ability3:
                     break;
+
+                case PlayerState.CUSTOM_MOVEMENT:
                 default:
                     throw new ArgumentOutOfRangeException(nameof(poppedState), poppedState, null);
             }

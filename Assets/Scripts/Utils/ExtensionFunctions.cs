@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace Utils
@@ -7,6 +8,7 @@ namespace Utils
     {
         private const float Tolerance = 0.001f;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int GetClosestMultiple(float number, int multiple = 5)
         {
             var a = (int)(number / multiple) * multiple;
@@ -20,8 +22,10 @@ namespace Utils
             return (Mathf.Abs(number - a) > Mathf.Abs(b - number)) ? b : a;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string Format2DecimalPlace(float value) => value.ToString("0.##");
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Color ConvertAndClampColor(float r = 0, float g = 0, float b = 0, float a = 0) =>
             new(
                 Mathf.Clamp01(r),
@@ -30,6 +34,7 @@ namespace Utils
                 Mathf.Clamp(a, 0, 255) / 255
             );
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float To360Angle(float angle)
         {
             while (angle < 0.0f)
@@ -40,6 +45,7 @@ namespace Utils
             return angle;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float Map(float from, float fromMin, float fromMax, float toMin, float toMax)
         {
             var fromAbs = from - fromMin;
@@ -55,8 +61,10 @@ namespace Utils
             return to;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsZero(Vector3 vector) => vector.sqrMagnitude == 0;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNearlyZero(float value, float tolerance = Tolerance)
         {
             return Math.Abs(value) <= tolerance;
