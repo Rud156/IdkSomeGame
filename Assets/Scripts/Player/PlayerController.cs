@@ -21,6 +21,7 @@ namespace Player
         [SerializeField] private AnimationCurve _moveSpeedAnimCurve;
         [SerializeField] private float _accelerationRate;
         [SerializeField] private float _decelerationRate;
+        [SerializeField] private float _overshootDecelerationRate;
 
         [Header("Jump Controls")]
         [SerializeField] private float _jumpLaunchSpeed;
@@ -51,11 +52,13 @@ namespace Player
         [Header("Rail Grind")]
         [SerializeField] private Transform _railGrindCastLocation;
         [SerializeField] private float _railGrindSpeed;
-        [SerializeField] private float _railGrindDistanceCheck;
+        [SerializeField] private float _railGrindCheckerRadius;
         [SerializeField] private LayerMask _railGrindLayerMask;
         [SerializeField] private float _railGrindFowardCheckDistance;
         [SerializeField] private int _railGrindSplineResolution;
         [SerializeField] private int _railGrindSplineIterations;
+        [SerializeField] private float _railGrindJumpVelocity;
+        [SerializeField] private float _railGrindFallLaunchVelocity;
 
         // Additional Components
         private Transform _cameraObject;
@@ -196,9 +199,14 @@ namespace Player
 
             if (_jumpAction.WasPressedThisFrame())
             {
-                _moveVelocity.y = _jumpLaunchSpeed;
-                onJumped?.Invoke();
+                TriggerJump(_jumpLaunchSpeed);
             }
+        }
+
+        private void TriggerJump(float launchVelocity)
+        {
+            _moveVelocity.y = launchVelocity;
+            onJumped?.Invoke();
         }
 
         private void CheckGroundedState()
@@ -256,19 +264,27 @@ namespace Player
             // Maybe this is a bad idea of handling deceleration when Idle
             // But, the basic logic is this
             // Keep decreasing MoveSpeed till we hit 0
-            CurrentMoveSpeed -= _decelerationRate * Time.deltaTime;
-            CurrentMoveSpeed = Mathf.Clamp(CurrentMoveSpeed, 0, _moveSpeed);
-            var deltaMoveSpeed = CurrentMoveSpeed * Time.deltaTime;
+            if (CurrentMoveSpeed > 0)
+            {
+                CurrentMoveSpeed -= _decelerationRate * Time.deltaTime;
+                var deltaMoveSpeed = CurrentMoveSpeed * Time.deltaTime;
 
-            // Calculate Movement Direction
-            var movement = _orientation.forward * _lastNonZeroMoveInput.y +
-                           _orientation.right * _lastNonZeroMoveInput.x;
-            movement.Normalize();
-            movement *= deltaMoveSpeed;
+                // Calculate Movement Direction
+                var movement = _orientation.forward * _lastNonZeroMoveInput.y +
+                               _orientation.right * _lastNonZeroMoveInput.x;
+                movement.Normalize();
+                movement *= deltaMoveSpeed;
 
-            // Setup Movement...
-            _moveVelocity.x = movement.x;
-            _moveVelocity.z = movement.z;
+                // Setup Movement...
+                _moveVelocity.x = movement.x;
+                _moveVelocity.z = movement.z;
+            }
+            else
+            {
+                CurrentMoveSpeed = 0;
+                _moveVelocity.x = 0;
+                _moveVelocity.z = 0;
+            }
 
             if (!IsZeroMoveInput())
             {
@@ -291,10 +307,18 @@ namespace Player
             // So, we can reduce/increase the based...
             var dotProduct = Vector3.Dot(_moveInput, _previousFrameInput);
             var mappedSpeedMultiplier = _moveSpeedAnimCurve.Evaluate(dotProduct);
+
             // Calculate the final Movement speed...
-            CurrentMoveSpeed += _accelerationRate * Time.deltaTime;
+            if (CurrentMoveSpeed > _moveSpeed)
+            {
+                CurrentMoveSpeed -= _overshootDecelerationRate * Time.deltaTime;
+            }
+            else
+            {
+                CurrentMoveSpeed += _accelerationRate * Time.deltaTime;
+            }
+
             CurrentMoveSpeed *= mappedSpeedMultiplier;
-            CurrentMoveSpeed = Mathf.Clamp(CurrentMoveSpeed, 0, _moveSpeed);
 
             // Apply the speed...
             var deltaMoveSpeed = CurrentMoveSpeed * Time.deltaTime;
@@ -326,8 +350,6 @@ namespace Player
                 // Since the slide does not need any conditions per-say to activate. Check it last...
                 else if (CanActivateSlide())
                 {
-                    CurrentMoveSpeed /= 2;
-                    _previousFrameInput /= 2;
                     ActivateSlide();
                 }
             }
@@ -377,8 +399,8 @@ namespace Player
             if (_jumpAction.WasPressedThisFrame())
             {
                 // Jump with a Boosted velocity...
-                _moveVelocity.y = _slideJumpVelocity;
-                onJumped?.Invoke();
+                TriggerJump(_slideJumpVelocity);
+                CurrentMoveSpeed = _slideSpeed;
 
                 PopState();
                 return;
@@ -533,7 +555,7 @@ namespace Player
                 _railGrindCastLocation.position,
                 Vector3.down,
                 _raycastHit,
-                _railGrindDistanceCheck,
+                _railGrindCheckerRadius,
                 _railGrindLayerMask
             );
             if (hitCount <= 0)
