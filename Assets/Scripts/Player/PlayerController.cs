@@ -298,21 +298,22 @@ namespace Player
             {
                 if (CanActivateWallRunSaveWallRunDirection())
                 {
-                    _wallRunCurrentTime = _wallRunDuration;
-                    PushState(PlayerState.WallRun);
+                    CurrentMoveSpeed = 0;
+                    _previousFrameInput = Vector2.zero;
+                    ActivateWallRun();
                 }
                 else if (CanActivateRailGrindSaveSplineContainer())
                 {
+                    CurrentMoveSpeed = 0;
+                    _previousFrameInput = Vector2.zero;
                     PushState(PlayerState.RailGrind);
                 }
-                // Since slide does not need any conditions per-say to activate. Check it last...
+                // Since the slide does not need any conditions per-say to activate. Check it last...
                 else if (CanActivateSlide())
                 {
-                    // Basically, we save the direction when we start the slide and then use that for the
-                    // entire duration...
-                    _slideDirectionInput = _lastNonZeroMoveInput;
-                    _slideCurrentTime = _slideDuration;
-                    PushState(PlayerState.Slide);
+                    CurrentMoveSpeed /= 2;
+                    _previousFrameInput /= 2;
+                    ActivateSlide();
                 }
             }
         }
@@ -326,6 +327,15 @@ namespace Player
         }
 
         private bool CanActivateSlide() => !IsZeroMoveInput() && _playerStateStack.Peek() == PlayerState.Moving;
+
+        private void ActivateSlide()
+        {
+            // Basically, we save the direction when we start the slide and then use that for the
+            // entire duration...
+            _slideDirectionInput = _lastNonZeroMoveInput;
+            _slideCurrentTime = _slideDuration;
+            PushState(PlayerState.Slide);
+        }
 
         private void UpdateSlideState()
         {
@@ -390,6 +400,12 @@ namespace Player
             // If we reached here means we have one of the sides stored in _isLeftWallRun
             // The rest can be handled via the update loop...
             return _raycastHit[0].collider.TryGetComponent<IsWallRunnable>(out _);
+        }
+
+        private void ActivateWallRun()
+        {
+            _wallRunCurrentTime = _wallRunDuration;
+            PushState(PlayerState.WallRun);
         }
 
         private void UpdateWallRunState()
