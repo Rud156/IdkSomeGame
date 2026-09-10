@@ -149,7 +149,7 @@ MonoBehaviour:
   _gravityMultiplier: 0.075
   _rotationSpeed: 14
   _slideSpeed: 21
-  _slideJumpVelocity: 0.315
+  _slideJumpVelocity: 0.3
   _slideFallLaunchVelocity: 25
   _slideDuration: 1
   _wallRunLeftSide: {fileID: 2853230112475119967}
@@ -173,6 +173,9 @@ MonoBehaviour:
   _railGrindSplineIterations: 16
   _railGrindJumpVelocity: 0.315
   _railGrindFallLaunchVelocity: 25
+  _railGrindAcceleration: 7
+  _railGrindDeceleration: 3
+  _railGrindBoostDuration: 1.5
 --- !u!114 &51265536399188793
 MonoBehaviour:
   m_ObjectHideFlags: 0

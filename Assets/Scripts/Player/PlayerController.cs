@@ -59,6 +59,9 @@ namespace Player
         [SerializeField] private int _railGrindSplineIterations;
         [SerializeField] private float _railGrindJumpVelocity;
         [SerializeField] private float _railGrindFallLaunchVelocity;
+        [SerializeField] private float _railGrindAcceleration;
+        [SerializeField] private float _railGrindDeceleration;
+        [SerializeField] private float _railGrindBoostDuration;
 
         // Additional Components
         private Transform _cameraObject;
@@ -76,7 +79,6 @@ namespace Player
         private bool _isGrounded;
         private Vector3 _moveVelocity;
         private Vector3 _cameraPosition;
-        private RaycastHit[] _raycastHit; // This is shared by Raycasts used in this class
 
         // Basic Movement Data
         public PlayerState CurrentPlayerState => _playerStateStack.Peek();
@@ -91,15 +93,19 @@ namespace Player
         private float _slideCurrentTime;
 
         // Wall Run Data
+        private RaycastHit[] _wallRunRaycastHit;
         private Vector2 _wallRunDirectionInput; // TODO: Implement this...
         public bool IsLeftWallRun { get; private set; }
         private float _wallRunCurrentTime;
 
         // Rail Grind Data
+        private Collider[] _railGrindOverlapColliders;
         private SplineContainer _railGrindSplineContainer;
         private float _railGrindSplineLength;
         private float _railGrindCurrentDistance;
         private bool _railGrindPositive;
+        private float _railGrindCurrentSpeed;
+        private float _railGrindBoostRemainingTime;
 
         // Delegates
         public delegate void OnJumped();
@@ -107,19 +113,22 @@ namespace Player
         public delegate void OnStateChanged(PlayerState currentState, PlayerState previousState);
         public delegate void OnStatePushed(PlayerState pushedState);
         public delegate void OnStatePopped(PlayerState poppedState);
+        public delegate void OnRailGrindBoosted();
 
         public OnJumped onJumped;
         public OnGroundedStateChanged onGroundedStateChanged;
         public OnStateChanged onStateChanged;
         public OnStatePushed onStatePushed;
         public OnStatePopped onStatePopped;
+        public OnRailGrindBoosted onRailGrindBoosted;
 
         private void Start()
         {
             CursorController.Instance.EnableCursor(false);
             _cameraObject = GameObject.FindGameObjectWithTag(GameTags.MainCamera).transform;
 
-            _raycastHit = new RaycastHit[1];
+            _wallRunRaycastHit = new RaycastHit[1];
+            _railGrindOverlapColliders = new Collider[1];
 
             CurrentMoveSpeed = 0;
             _moveVelocity = Vector3.zero;
@@ -230,7 +239,7 @@ namespace Player
                 onGroundedStateChanged?.Invoke(_characterController.isGrounded);
 
                 // Activate Falling State if we are not doing anything special
-                if (!_characterController.isGrounded && _isGrounded && !IsSpecialMovementStateActive())
+                if (!_characterController.isGrounded && _isGrounded)
                 {
                     PushState(PlayerState.Falling);
                 }
@@ -343,9 +352,7 @@ namespace Player
                 }
                 else if (CanActivateRailGrindSaveSplineContainer())
                 {
-                    CurrentMoveSpeed /= 2;
-                    _previousFrameInput /= 2;
-                    PushState(PlayerState.RailGrind);
+                    ActivateRailGrind();
                 }
                 // Since the slide does not need any conditions per-say to activate. Check it last...
                 else if (CanActivateSlide())
@@ -359,6 +366,12 @@ namespace Player
         {
             if (_isGrounded)
             {
+                // If we land on a Rail we can start a Rail Grind...
+                if (CanActivateRailGrindSaveSplineContainer())
+                {
+                    ActivateRailGrind();
+                }
+
                 PopState();
             }
         }
@@ -395,7 +408,7 @@ namespace Player
                 return;
             }
 
-            // Launch the Player and the then 
+            // Launch the Player
             if (_jumpAction.WasPressedThisFrame())
             {
                 // Jump with a Boosted velocity...
@@ -406,6 +419,7 @@ namespace Player
                 return;
             }
 
+            // If we start falling. Boost the player a little bit...
             if (!_characterController.isGrounded)
             {
                 // Get launched forward... // TODO: This needs to be tested when the other things are polished...
@@ -436,19 +450,19 @@ namespace Player
             var hitCount = Physics.RaycastNonAlloc(
                 _wallRunLeftSide.position,
                 -_characterMesh.right, // We depend on the character mesh for direction
-                _raycastHit,
+                _wallRunRaycastHit,
                 _wallRunDistanceCheck,
                 _wallRunLayerMask
             );
             if (hitCount > 0)
             {
-                return _raycastHit[0].collider.TryGetComponent<IsWallRunnable>(out _);
+                return _wallRunRaycastHit[0].collider.TryGetComponent<IsWallRunnable>(out _);
             }
 
             hitCount = Physics.RaycastNonAlloc(
                 _wallRunRightSide.position,
                 _characterMesh.right, // We depend on the character mesh for direction
-                _raycastHit,
+                _wallRunRaycastHit,
                 _wallRunDistanceCheck,
                 _wallRunLayerMask
             );
@@ -462,7 +476,7 @@ namespace Player
 
             // If we reached here means we have one of the sides stored in _isLeftWallRun
             // The rest can be handled via the update loop...
-            return _raycastHit[0].collider.TryGetComponent<IsWallRunnable>(out _);
+            return _wallRunRaycastHit[0].collider.TryGetComponent<IsWallRunnable>(out _);
         }
 
         private void ActivateWallRun()
@@ -479,7 +493,7 @@ namespace Player
                 hitCount = Physics.RaycastNonAlloc(
                     _wallRunLeftSide.position,
                     -_characterMesh.right,
-                    _raycastHit,
+                    _wallRunRaycastHit,
                     _wallRunDistanceCheck,
                     _wallRunLayerMask
                 );
@@ -489,7 +503,7 @@ namespace Player
                 hitCount = Physics.RaycastNonAlloc(
                     _wallRunRightSide.position,
                     _characterMesh.right,
-                    _raycastHit,
+                    _wallRunRaycastHit,
                     _wallRunDistanceCheck,
                     _wallRunLayerMask
                 );
@@ -502,7 +516,7 @@ namespace Player
                 return;
             }
 
-            var raycastHit = _raycastHit[0];
+            var raycastHit = _wallRunRaycastHit[0];
 
             // This means we are no longer on a wall that is runnable, so skip WallRunning
             var isWallRunnable = raycastHit.collider.TryGetComponent<IsWallRunnable>(out _);
@@ -545,17 +559,10 @@ namespace Player
 
         private bool CanActivateRailGrindSaveSplineContainer()
         {
-            var isValidMovement = !IsZeroMoveInput() && _playerStateStack.Peek() == PlayerState.Moving;
-            if (!isValidMovement)
-            {
-                return false;
-            }
-
-            var hitCount = Physics.RaycastNonAlloc(
+            var hitCount = Physics.OverlapSphereNonAlloc(
                 _railGrindCastLocation.position,
-                Vector3.down,
-                _raycastHit,
                 _railGrindCheckerRadius,
+                _railGrindOverlapColliders,
                 _railGrindLayerMask
             );
             if (hitCount <= 0)
@@ -563,7 +570,8 @@ namespace Player
                 return false;
             }
 
-            var isRailGrindable = _raycastHit[0].collider.TryGetComponent<IsRailGrindable>(out var railGrindComponent);
+            var isRailGrindable = _railGrindOverlapColliders[0]
+                .TryGetComponent<IsRailGrindable>(out var railGrindComponent);
             if (!isRailGrindable)
             {
                 return false;
@@ -601,6 +609,14 @@ namespace Player
             return true;
         }
 
+        private void ActivateRailGrind()
+        {
+            _railGrindCurrentSpeed = _railGrindSpeed;
+            _railGrindBoostRemainingTime = 0;
+
+            PushState(PlayerState.RailGrind);
+        }
+
         private void UpdateRailGrindState()
         {
             if (_railGrindCurrentDistance > _railGrindSplineLength || _railGrindCurrentDistance < 0)
@@ -609,7 +625,22 @@ namespace Player
                 return;
             }
 
-            _railGrindCurrentDistance += (_railGrindPositive ? 1 : -1) * _railGrindSpeed * Time.deltaTime;
+            // Basically when we are Boosting we increase the velocity
+            // And then slowly go back to the original speed...
+            if (_railGrindBoostRemainingTime > 0)
+            {
+                _railGrindBoostRemainingTime -= Time.deltaTime;
+                _railGrindCurrentSpeed += _railGrindAcceleration * Time.deltaTime;
+            }
+            else
+            {
+                if (_railGrindCurrentSpeed > _railGrindSpeed)
+                {
+                    _railGrindCurrentSpeed -= _railGrindDeceleration * Time.deltaTime;
+                }
+            }
+
+            _railGrindCurrentDistance += (_railGrindPositive ? 1 : -1) * _railGrindCurrentSpeed * Time.deltaTime;
             var railGrindRatio = _railGrindCurrentDistance / _railGrindSplineLength;
             Vector3 targetPosition = _railGrindSplineContainer.EvaluatePosition(railGrindRatio);
 
@@ -619,6 +650,37 @@ namespace Player
             // Setup Movement...
             _moveVelocity.x = movement.x;
             _moveVelocity.z = movement.z;
+
+            // Launch the Player
+            if (_jumpAction.WasPressedThisFrame())
+            {
+                // Jump with a Boosted velocity
+                TriggerJump(_railGrindJumpVelocity);
+                PopState();
+                return;
+            }
+
+            // If we start falling. Boost the player a little bit...
+            if (!_characterController.isGrounded)
+            {
+                // Recalculate the speed based on the Boosted Speed...
+                movement.Normalize();
+                movement *= (_railGrindFallLaunchVelocity * Time.deltaTime);
+
+                // Setup Movement...
+                _moveVelocity.x = movement.x;
+                _moveVelocity.z = movement.z;
+
+                PopState();
+                return;
+            }
+
+            // This means the player wants a boost in movement so we should push them ahead a little...
+            if (_sprintAction.WasPressedThisFrame())
+            {
+                _railGrindBoostRemainingTime = _railGrindBoostDuration;
+                onRailGrindBoosted?.Invoke();
+            }
         }
 
         private void UpdateAbility1State()

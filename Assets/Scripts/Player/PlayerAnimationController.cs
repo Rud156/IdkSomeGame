@@ -17,6 +17,7 @@ namespace Player
         private static readonly int WallRun = Animator.StringToHash("WallRunning");
         private static readonly int WallRunLeft = Animator.StringToHash("WalRunLeft");
         private static readonly int RailGrind = Animator.StringToHash("RailGrinding");
+        private static readonly int RailGrindBoost = Animator.StringToHash("RailGrindBoost");
 
         [Header("Components")]
         [SerializeField] private Animator _animator;
@@ -27,6 +28,7 @@ namespace Player
             _playerController.onJumped += HandlePlayerJumped;
             _playerController.onStatePushed += HandleStatePushed;
             _playerController.onStatePopped += HandleStatePopped;
+            _playerController.onRailGrindBoosted += HandleRailGrindBoosted;
         }
 
         private void OnDestroy()
@@ -34,6 +36,7 @@ namespace Player
             _playerController.onJumped -= HandlePlayerJumped;
             _playerController.onStatePushed -= HandleStatePushed;
             _playerController.onStatePopped -= HandleStatePopped;
+            _playerController.onRailGrindBoosted -= HandleRailGrindBoosted;
         }
 
         private void LateUpdate()
@@ -149,6 +152,8 @@ namespace Player
                     throw new ArgumentOutOfRangeException(nameof(poppedState), poppedState, null);
             }
         }
+
+        private void HandleRailGrindBoosted() => _animator.SetTrigger(RailGrindBoost);
 
         #endregion
     }
