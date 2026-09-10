@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Global;
 using Global.GameObjectMarkers;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Splines;
@@ -49,6 +50,10 @@ namespace Player
         private float _wallRunAttachedDistanceCheck;
         [SerializeField] private float _wallRunCorrectionSpeed;
         [SerializeField] private LayerMask _wallRunLayerMask;
+        [SerializeField] private float _wallRunUpCurveSpeed;
+        [SerializeField] private float _wallRunDownCurveSpeed;
+        [SerializeField] private float _wallRunUpCurveDuration;
+        [SerializeField] private Vector3 _wallRunLaunchSpeed;
         [Header("Rail Grind")]
         [SerializeField] private Transform _railGrindCastLocation;
         [SerializeField] private float _railGrindSpeed;
@@ -346,8 +351,6 @@ namespace Player
             {
                 if (CanActivateWallRunSaveWallRunDirection())
                 {
-                    CurrentMoveSpeed = 0;
-                    _previousFrameInput = Vector2.zero;
                     ActivateWallRun();
                 }
                 else if (CanActivateRailGrindSaveSplineContainer())
@@ -370,6 +373,10 @@ namespace Player
                 if (CanActivateRailGrindSaveSplineContainer())
                 {
                     ActivateRailGrind();
+                }
+                else if (CanActivateWallRunSaveWallRunDirection())
+                {
+                    ActivateWallRun();
                 }
 
                 PopState();
@@ -416,11 +423,9 @@ namespace Player
                 CurrentMoveSpeed = _slideSpeed;
 
                 PopState();
-                return;
             }
-
             // If we start falling. Boost the player a little bit...
-            if (!_characterController.isGrounded)
+            else if (!_characterController.isGrounded)
             {
                 // Get launched forward... // TODO: This needs to be tested when the other things are polished...
                 movement = _orientation.forward * _slideDirectionInput.y + _orientation.right * _slideDirectionInput.x;
@@ -437,8 +442,7 @@ namespace Player
 
         private bool CanActivateWallRunSaveWallRunDirection()
         {
-            var isValidMovement = !IsZeroMoveInput() && _playerStateStack.Peek() == PlayerState.Moving;
-            if (!isValidMovement)
+            if (IsZeroMoveInput())
             {
                 return false;
             }
@@ -535,16 +539,35 @@ namespace Player
                 wallParallel = -wallParallel;
             }
 
-            var distanceFromWall = Vector3.Distance(transform.position, raycastHit.point);
-            var correctedDistance = distanceFromWall - _wallRunAttachedDistanceCheck;
+            // Apply the actual Wall Run speed..
+            wallParallel *= _wallRunSpeed;
 
             // Now make a vector that goes into the wall
+            var distanceFromWall = Vector3.Distance(transform.position, raycastHit.point);
+            var correctedDistance = distanceFromWall - _wallRunAttachedDistanceCheck;
             var correctionDirection = -raycastHit.normal * (correctedDistance * _wallRunCorrectionSpeed);
-            var movement = (wallParallel * _wallRunSpeed) + correctionDirection;
+
+            // Make a Vector that goes up and then slowly goes down...
+            var upTimeLeft = _wallRunDuration - _wallRunUpCurveDuration;
+            // This means that we are still in the window to keep going up slightly...
+            Vector3 verticalMotionVector;
+            if (_wallRunCurrentTime > upTimeLeft)
+            {
+                verticalMotionVector = Vector3.up * _wallRunUpCurveSpeed;
+            }
+            // This means the player needs to go down slowly
+            else
+            {
+                verticalMotionVector = Vector3.down * _wallRunDownCurveSpeed;
+            }
+
+            // Final Movement
+            var movement = wallParallel + correctionDirection + verticalMotionVector;
             movement *= Time.deltaTime;
 
             // Setup Movement...
             _moveVelocity.x = movement.x;
+            _moveVelocity.y = movement.y;
             _moveVelocity.z = movement.z;
 
             // Reduce the timer...
@@ -553,6 +576,25 @@ namespace Player
             // This means the wall run is over we exit the state...
             if (_wallRunCurrentTime <= 0)
             {
+                PopState();
+            }
+            // If we press Jump when on a Wall Run. Find which direction is empty and launch the player
+            else if (_jumpAction.WasPressedThisFrame())
+            {
+                // Get a Vector opposite to the Wall
+                var outLaunchVector = raycastHit.normal.normalized;
+
+                // Create a forward Vector
+                wallParallel /= _wallRunSpeed;
+                wallParallel.Normalize();
+
+                // Launch the Player...
+                movement = outLaunchVector + wallParallel + Vector3.up;
+
+                // Apply the final movement
+                _moveVelocity.x = movement.x * _wallRunLaunchSpeed.x;
+                _moveVelocity.z = movement.z * _wallRunLaunchSpeed.z;
+                TriggerJump(movement.y * _wallRunLaunchSpeed.y);
                 PopState();
             }
         }
@@ -657,11 +699,9 @@ namespace Player
                 // Jump with a Boosted velocity
                 TriggerJump(_railGrindJumpVelocity);
                 PopState();
-                return;
             }
-
             // If we start falling. Boost the player a little bit...
-            if (!_characterController.isGrounded)
+            else if (!_characterController.isGrounded)
             {
                 // Recalculate the speed based on the Boosted Speed...
                 movement.Normalize();
@@ -672,11 +712,9 @@ namespace Player
                 _moveVelocity.z = movement.z;
 
                 PopState();
-                return;
             }
-
             // This means the player wants a boost in movement so we should push them ahead a little...
-            if (_sprintAction.WasPressedThisFrame())
+            else if (_sprintAction.WasPressedThisFrame())
             {
                 _railGrindBoostRemainingTime = _railGrindBoostDuration;
                 onRailGrindBoosted?.Invoke();
@@ -798,6 +836,31 @@ namespace Player
             var playerState = _playerStateStack.Pop();
             onStateChanged?.Invoke(_playerStateStack.Peek(), playerState);
             onStatePopped?.Invoke(playerState);
+        }
+
+        #endregion
+
+        #region Custom Editor Display
+
+        [CustomEditor(typeof(PlayerController))]
+        public class CustomPlayerControllerEditor : Editor
+        {
+            public override void OnInspectorGUI()
+            {
+                DrawDefaultInspector();
+                EditorGUILayout.Space();
+
+                var ts = (PlayerController)target;
+                var stack = ts._playerStateStack;
+
+                if (stack != null)
+                {
+                    foreach (var item in stack)
+                    {
+                        GUILayout.Label(item.ToString());
+                    }
+                }
+            }
         }
 
         #endregion

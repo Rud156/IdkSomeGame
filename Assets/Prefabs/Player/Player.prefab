@@ -25,8 +25,8 @@ Transform:
   m_GameObject: {fileID: 1738085221412995186}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.62499994, y: 0.83333325, z: 0}
-  m_LocalScale: {x: 0.83333325, y: 0.83333325, z: 0.83333325}
+  m_LocalPosition: {x: 0, y: 1, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2403324588894079098}
@@ -156,12 +156,16 @@ MonoBehaviour:
   _wallRunRightSide: {fileID: 2768216021420199333}
   _wallRunSpeed: 21
   _wallRunDuration: 1.5
-  _wallRunDistanceCheck: 10
-  _wallRunAttachedDistanceCheck: 3
-  _wallRunCorrectionSpeed: 14
+  _wallRunDistanceCheck: 2
+  _wallRunAttachedDistanceCheck: 0.5
+  _wallRunCorrectionSpeed: 21
   _wallRunLayerMask:
     serializedVersion: 2
     m_Bits: 1
+  _wallRunUpCurveSpeed: 3
+  _wallRunDownCurveSpeed: 1
+  _wallRunUpCurveDuration: 0.9
+  _wallRunLaunchSpeed: {x: 0.3, y: 0.35, z: 0.3}
   _railGrindCastLocation: {fileID: 5188476887375244022}
   _railGrindSpeed: 21
   _railGrindCheckerRadius: 0.5
@@ -277,8 +281,8 @@ Transform:
   m_GameObject: {fileID: 8875710895850614031}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.62499994, y: 0.83333325, z: 0}
-  m_LocalScale: {x: 0.83333325, y: 0.83333325, z: 0.83333325}
+  m_LocalPosition: {x: 0, y: 1, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2403324588894079098}
