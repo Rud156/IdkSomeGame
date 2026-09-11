@@ -63,7 +63,6 @@ namespace Player
         [SerializeField] private int _railGrindSplineResolution;
         [SerializeField] private int _railGrindSplineIterations;
         [SerializeField] private float _railGrindJumpVelocity;
-        [SerializeField] private float _railGrindFallLaunchVelocity;
         [SerializeField] private float _railGrindAcceleration;
         [SerializeField] private float _railGrindDeceleration;
         [SerializeField] private float _railGrindBoostDuration;
@@ -129,6 +128,21 @@ namespace Player
 
         private void Start()
         {
+            /*
+             * TODO:
+             * 
+             * We need to figure out an easier way initiate Rail Grind, Wall Run
+             * For Rail Grind we need to make a much bigger sphere cast so that it can be easily trigger
+             * Ideally I want it to be triggered when the player is near but not exactly on it
+             *
+             * Same thing for Wall Run
+             * I need to find trigger it from when the player is NOT perpendicular to a wall
+             * Meaning they can trigger a wall run from some distance away from the wall and it'll
+             * pull the player towards to wall
+             *
+             * Maybe tone down the speeds? The character feels good but is kind of hard to control
+             */
+            
             CursorController.Instance.EnableCursor(false);
             _cameraObject = GameObject.FindGameObjectWithTag(GameTags.MainCamera).transform;
 
@@ -369,6 +383,10 @@ namespace Player
         {
             if (_isGrounded)
             {
+                // We need to pop the state prior to pushing a new state on since we don't care aobut
+                // Falling after the new states have been added...
+                PopState();
+
                 // If we land on a Rail we can start a Rail Grind...
                 if (CanActivateRailGrindSaveSplineContainer())
                 {
@@ -378,8 +396,6 @@ namespace Player
                 {
                     ActivateWallRun();
                 }
-
-                PopState();
             }
         }
 
@@ -442,6 +458,12 @@ namespace Player
 
         private bool CanActivateWallRunSaveWallRunDirection()
         {
+            // For Wall Run we need the user to have pressed the button before triggering it...
+            if (!_sprintAction.IsPressed())
+            {
+                return false;
+            }
+
             if (IsZeroMoveInput())
             {
                 return false;
@@ -585,7 +607,6 @@ namespace Player
                 var outLaunchVector = raycastHit.normal.normalized;
 
                 // Create a forward Vector
-                wallParallel /= _wallRunSpeed;
                 wallParallel.Normalize();
 
                 // Launch the Player...
@@ -601,6 +622,13 @@ namespace Player
 
         private bool CanActivateRailGrindSaveSplineContainer()
         {
+            // We need the user to perform an action before we activate.
+            // Otherwise we'll be activating it unintentionally...
+            if (!_sprintAction.IsPressed())
+            {
+                return false;
+            }
+
             var hitCount = Physics.OverlapSphereNonAlloc(
                 _railGrindCastLocation.position,
                 _railGrindCheckerRadius,
@@ -691,6 +719,7 @@ namespace Player
 
             // Setup Movement...
             _moveVelocity.x = movement.x;
+            _moveVelocity.y = 0;
             _moveVelocity.z = movement.z;
 
             // Launch the Player
@@ -698,19 +727,6 @@ namespace Player
             {
                 // Jump with a Boosted velocity
                 TriggerJump(_railGrindJumpVelocity);
-                PopState();
-            }
-            // If we start falling. Boost the player a little bit...
-            else if (!_characterController.isGrounded)
-            {
-                // Recalculate the speed based on the Boosted Speed...
-                movement.Normalize();
-                movement *= (_railGrindFallLaunchVelocity * Time.deltaTime);
-
-                // Setup Movement...
-                _moveVelocity.x = movement.x;
-                _moveVelocity.z = movement.z;
-
                 PopState();
             }
             // This means the player wants a boost in movement so we should push them ahead a little...
